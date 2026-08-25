@@ -47,7 +47,8 @@ float3 VatFetchPosition(float vertexU, float frame, float height)
 
 float3 VatFetchNormal(float vertexU, float frame, float height)
 {
-    return SAMPLE_TEXTURE2D_LOD(_NormalMap, sampler_NormalMap, VatMapUv(vertexU, frame, height), 0).xyz;
+    float2 encoded = SAMPLE_TEXTURE2D_LOD(_NormalMap, sampler_NormalMap, VatMapUv(vertexU, frame, height), 0).xy;
+    return VatDecodeNormal(encoded);
 }
 
 // Every normal fetch in the sampling chain goes through here, so a position-only pass drops them

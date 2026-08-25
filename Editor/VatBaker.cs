@@ -14,6 +14,8 @@ namespace Alpershin.Vat.EditorTools
     {
         private const string DefaultShaderName = "VAT/Lit";
         private const int MaxMapWidth = 16384;
+        private const int MaxMapHeight = 16384;
+        private const TextureFormat NormalMapFormat = TextureFormat.RG16;
         private const string PerInstanceKeyword = "_VAT_PER_INSTANCE";
 
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
@@ -217,6 +219,27 @@ namespace Alpershin.Vat.EditorTools
                 return false;
             }
 
+            // An unsupported texture format does not throw — the graphics backend asserts and takes
+            // the editor down with it, so it gets checked here rather than discovered at upload.
+            if (set.BakeNormals && !SystemInfo.SupportsTextureFormat(NormalMapFormat))
+            {
+                problem = $"This machine's graphics backend has no {NormalMapFormat}, which the normal " +
+                          "map needs. Switch Bake Normals off.";
+                return false;
+            }
+
+            // Every clip stacks into the same map, so it is the total that hits the texture limit,
+            // not any one clip. Caught here rather than inside the bake: Texture2D would throw
+            // after the sampling had already run, with nothing pointing at the clip list.
+            var frameCount = VatSampler.CountFrames(clips, set.Fps);
+            if (frameCount > MaxMapHeight)
+            {
+                problem = $"{clips.Count} clips at {set.Fps} FPS come to {frameCount} frames, over the " +
+                          $"{MaxMapHeight} texture height limit. Lower the FPS, shorten the clips, or " +
+                          "split them across two sets.";
+                return false;
+            }
+
             problem = string.Empty;
             return true;
         }
@@ -278,7 +301,7 @@ namespace Alpershin.Vat.EditorTools
 
                 var positionMap = WriteMap(set, setPath, $"{baseName}-VatPositions{level.Suffix}", buffer.Positions, buffer, kept);
                 var normalMap = buffer.HasNormals
-                    ? WriteMap(set, setPath, $"{baseName}-VatNormals{level.Suffix}", buffer.Normals, buffer, kept)
+                    ? WriteNormalMap(set, setPath, $"{baseName}-VatNormals{level.Suffix}", buffer, kept)
                     : null;
 
                 var firstClip = buffer.Clips[0];
@@ -313,6 +336,14 @@ namespace Alpershin.Vat.EditorTools
         {
             var existing = AcquireSubAsset<Texture2D>(set, setPath, name);
             var map = CreateMap(name, data, buffer.VertexCount, buffer.FrameCount, existing);
+            Keep(set, setPath, map, kept);
+            return map;
+        }
+
+        private static Texture2D WriteNormalMap(VatAnimationSet set, string setPath, string name, VatSampleBuffer buffer, List<Object> kept)
+        {
+            var existing = AcquireSubAsset<Texture2D>(set, setPath, name);
+            var map = CreateNormalMap(name, buffer, existing);
             Keep(set, setPath, map, kept);
             return map;
         }
@@ -495,6 +526,71 @@ namespace Alpershin.Vat.EditorTools
             texture.SetPixels(pixels);
             texture.Apply(false, false);
             return texture;
+        }
+
+        /// <summary>
+        /// Normals go in octahedral, two channels of eight bits: a unit vector folded onto a square
+        /// at roughly a degree of error, which a crowd never resolves. A quarter of what three
+        /// half-float channels cost. VatDecodeNormal in VatSampling.hlsl unfolds it.
+        /// </summary>
+        private static Texture2D CreateNormalMap(string name, VatSampleBuffer buffer, Texture2D target)
+        {
+            var width = buffer.VertexCount;
+            var height = buffer.FrameCount;
+
+            var texture = target;
+            if (texture == null)
+            {
+                texture = new Texture2D(width, height, NormalMapFormat, false, true);
+            }
+            else
+            {
+                texture.Reinitialize(width, height, NormalMapFormat, false);
+            }
+
+            texture.name = name;
+            texture.filterMode = FilterMode.Point;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.anisoLevel = 0;
+
+            var normals = buffer.Normals;
+            var encoded = new byte[width * height * 2];
+            for (var i = 0; i < normals.Length; i++)
+            {
+                var oct = OctEncode(normals[i]);
+                encoded[i * 2] = Quantise(oct.x);
+                encoded[i * 2 + 1] = Quantise(oct.y);
+            }
+
+            texture.SetPixelData(encoded, 0);
+            texture.Apply(false, false);
+            return texture;
+        }
+
+        private static byte Quantise(float normalised)
+        {
+            return (byte)Mathf.Clamp(Mathf.RoundToInt(normalised * 255f), 0, 255);
+        }
+
+        /// <summary>Folds a unit vector onto a square so it fits in two channels instead of three.</summary>
+        private static Vector2 OctEncode(Vector3 normal)
+        {
+            var length = Mathf.Abs(normal.x) + Mathf.Abs(normal.y) + Mathf.Abs(normal.z);
+            if (length <= 0f)
+            {
+                return new Vector2(0.5f, 0.5f);
+            }
+
+            var folded = normal / length;
+            var oct = new Vector2(folded.x, folded.y);
+            if (folded.z < 0f)
+            {
+                oct = new Vector2(
+                    (1f - Mathf.Abs(folded.y)) * (folded.x >= 0f ? 1f : -1f),
+                    (1f - Mathf.Abs(folded.x)) * (folded.y >= 0f ? 1f : -1f));
+            }
+
+            return oct * 0.5f + new Vector2(0.5f, 0.5f);
         }
 
         private static GameObject CreatePrefab(VatAnimationSet set, string folder, List<VatLevel> levels)

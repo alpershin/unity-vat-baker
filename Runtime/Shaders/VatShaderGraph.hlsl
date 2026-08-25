@@ -23,7 +23,7 @@ void VatGraphFetch(
     float2 uv = VatMapUv(vertexU, frame, height);
 
     positionOS = SAMPLE_TEXTURE2D_LOD(positionMap.tex, positionMap.samplerstate, uv, 0).xyz;
-    normalOS = SAMPLE_TEXTURE2D_LOD(normalMap.tex, normalMap.samplerstate, uv, 0).xyz;
+    normalOS = VatDecodeNormal(SAMPLE_TEXTURE2D_LOD(normalMap.tex, normalMap.samplerstate, uv, 0).xy);
 }
 
 // One texel row, no interpolation between frames.

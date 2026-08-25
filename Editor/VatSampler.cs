@@ -80,6 +80,27 @@ namespace Alpershin.Vat.EditorTools
             return new VatSampleBuffer(_positions, _normals, _bounds, _vertexCount, frameCount, table);
         }
 
+        /// <summary>
+        /// Rows one clip takes up in the map. The bake and the validation that guards it have to
+        /// agree on this to the frame, so both come here rather than each rounding on its own.
+        /// </summary>
+        public static int CountFrames(AnimationClip clip, float fps)
+        {
+            return Mathf.Max(1, Mathf.RoundToInt(clip.length * fps));
+        }
+
+        /// <summary>Rows the whole clip list takes up — the height of the map it will bake into.</summary>
+        public static int CountFrames(List<VatSourceClip> clips, float fps)
+        {
+            var total = 0;
+            for (var i = 0; i < clips.Count; i++)
+            {
+                total += CountFrames(clips[i].Clip, fps);
+            }
+
+            return total;
+        }
+
         private VatClip[] BuildTable(List<VatSourceClip> clips)
         {
             var table = new VatClip[clips.Count];
@@ -89,7 +110,7 @@ namespace Alpershin.Vat.EditorTools
             {
                 var source = clips[i];
                 var clip = source.Clip;
-                var frames = Mathf.Max(1, Mathf.RoundToInt(clip.length * _fps));
+                var frames = CountFrames(clip, _fps);
 
                 // Sampling always runs at the bake rate; the state's speed lives in the playback
                 // rate the shader reads, so a faster state costs no extra frames.

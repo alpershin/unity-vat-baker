@@ -63,4 +63,16 @@ float4 VatCurrentClip(float4 materialParams)
     return _VatClipA.y > 0.0 ? _VatClipA : materialParams;
 }
 
+// Normals arrive octahedral in two channels: a unit vector folded onto a square by the baker, at
+// roughly a degree of error, for a quarter of what three half-float channels would cost.
+float3 VatDecodeNormal(float2 encoded)
+{
+    float2 folded = encoded * 2.0 - 1.0;
+    float3 normal = float3(folded.x, folded.y, 1.0 - abs(folded.x) - abs(folded.y));
+    float fold = saturate(-normal.z);
+
+    normal.xy += normal.xy >= 0.0 ? -fold : fold;
+    return normalize(normal);
+}
+
 #endif

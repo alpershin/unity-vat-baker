@@ -4,6 +4,26 @@ All notable changes to this package are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Requires a rebake.** Normal maps are octahedral `RG16` instead of `RGBAHalf`: a unit vector
+  folded onto a square in two channels of eight bits, about a degree of error. Four times smaller —
+  an 8000-vertex level with 600 frames drops from 38 MB to 10 MB for the normal map, 77 MB to 48 MB
+  for the pair. A set baked before this change lights wrong until rebaked; the geometry is
+  unaffected, since position maps are untouched.
+- The baker refuses to start if the graphics backend has no `RG16`, rather than letting the format
+  reach the driver. An unsupported texture format raises nothing catchable — the backend asserts
+  and takes the editor down with it.
+
+### Fixed
+
+- The baker checks the map height. Only the width was validated, so a clip list whose frames summed
+  past 16384 rows threw out of `Texture2D` after the sampling had already run, with nothing
+  pointing at the clip list. `VatSampler.CountFrames` is now the one place that decides how many
+  rows a clip takes, so the guard and the bake cannot round differently.
+
 ## [0.2.0] - 2026-08-25
 
 ### Fixed
