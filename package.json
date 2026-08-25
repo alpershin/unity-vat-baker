@@ -1,6 +1,6 @@
 {
   "name": "com.alpershin.vat",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "displayName": "VAT Animation Baker",
   "description": "Bakes Unity animation clips into vertex animation textures and plays them back on URP shaders, so a whole crowd animates from one material and one instanced draw call. Ships an editor baker with preview window, a runtime crowd player and lit/unlit VAT shaders.",
   "unity": "6000.3",

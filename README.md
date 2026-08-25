@@ -38,7 +38,7 @@ Or add it to `Packages/manifest.json` directly:
 "com.alpershin.vat": "https://github.com/alpershin/unity-vat-baker.git"
 ```
 
-Pin a release by appending a tag: `…unity-vat-baker.git#v0.2.0`.
+Pin a release by appending a tag: `…unity-vat-baker.git#v0.3.0`.
 
 ## Bake a character
 
