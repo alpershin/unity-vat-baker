@@ -38,8 +38,6 @@ Shader "VAT/Unlit"
         CBUFFER_END
 
         TEXTURE2D(_BaseMap);        SAMPLER(sampler_BaseMap);
-
-        #include "VatCommon.hlsl"
         ENDHLSL
 
         Pass
@@ -55,11 +53,18 @@ Shader "VAT/Unlit"
             #pragma shader_feature_local_vertex _VAT_PER_INSTANCE
             #pragma multi_compile _ LOD_FADE_CROSSFADE
             #pragma multi_compile_instancing
+
+            // Nothing here reads the normal, so the normal map is left unsampled.
+            #define VAT_POSITION_ONLY
+            #include "VatCommon.hlsl"
             #pragma multi_compile_fog
 
+            // No POSITION, and no NORMAL where the VAT maps supply one: the deformed position and
+            // normal are read out of the maps, so binding the mesh's own streams would fetch bytes
+            // per vertex that nothing reads. Only the base map UV and the vertex's column into the
+            // maps are real inputs.
             struct Attributes
             {
-                float4 positionOS : POSITION;
                 float2 uv         : TEXCOORD0;
                 float2 vatUv      : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -118,18 +123,24 @@ Shader "VAT/Unlit"
             #pragma target 3.5
             #pragma vertex ShadowVertex
             #pragma fragment ShadowFragment
-            #pragma shader_feature_local_vertex _VAT_FRAME_BLEND
             #pragma shader_feature_local_vertex _VAT_PER_INSTANCE
             #pragma multi_compile _ LOD_FADE_CROSSFADE
             #pragma multi_compile_instancing
+
+            // Nothing here reads the normal, so the normal map is left unsampled.
+            #define VAT_POSITION_ONLY
+            // A shadow map is compared against itself, so half a frame of pose shift never shows.
+            #define VAT_NEAREST_FRAME
+            #include "VatCommon.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
 
             float3 _LightDirection;
 
+            // Unlit never samples the normal map, so this pass is the one place that still needs
+            // the mesh normal — ApplyShadowBias offsets along it.
             struct ShadowAttributes
             {
-                float4 positionOS : POSITION;
                 float3 normalOS   : NORMAL;
                 float2 vatUv      : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -189,9 +200,12 @@ Shader "VAT/Unlit"
             #pragma multi_compile _ LOD_FADE_CROSSFADE
             #pragma multi_compile_instancing
 
+            // Nothing here reads the normal, so the normal map is left unsampled.
+            #define VAT_POSITION_ONLY
+            #include "VatCommon.hlsl"
+
             struct DepthAttributes
             {
-                float4 positionOS : POSITION;
                 float2 vatUv      : TEXCOORD1;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
