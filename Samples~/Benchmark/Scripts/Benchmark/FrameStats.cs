@@ -3,8 +3,9 @@ using System;
 namespace Alpershin.Vat.Samples.Benchmark
 {
     /// <summary>
-    /// Rolling window of frame times in milliseconds, with the summary a comparison actually needs:
-    /// an average is not enough when one branch stutters and the other does not.
+    /// Rolling window of one per-frame value — frame times in milliseconds, or a render counter —
+    /// with the summary a comparison actually needs: an average is not enough when one branch
+    /// stutters and the other does not.
     /// </summary>
     public sealed class FrameStats
     {

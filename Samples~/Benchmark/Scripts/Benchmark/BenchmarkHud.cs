@@ -37,6 +37,15 @@ namespace Alpershin.Vat.Samples.Benchmark
 
         private readonly FrameStats _live = new FrameStats(120);
         private readonly FrameStats _sample = new FrameStats(4096);
+
+        // Render counters are published by the render thread, not this one. With VSync off and the
+        // frame rate uncapped the main thread outruns it, so LastValue reads zero on the frames no
+        // sample has landed on yet and the accumulated figure on the frames one has — the readout
+        // flips between 0 and a doubled count. Averaging a frame window puts it back on its feet.
+        private readonly FrameStats _liveDrawCalls = new FrameStats(60);
+        private readonly FrameStats _liveBatches = new FrameStats(60);
+        private readonly FrameStats _liveSetPassCalls = new FrameStats(60);
+        private readonly FrameStats _liveTriangles = new FrameStats(60);
         private readonly List<string> _results = new List<string>();
         private readonly StringBuilder _builder = new StringBuilder(256);
         private readonly HudLayout _layout = new HudLayout();
@@ -155,6 +164,7 @@ namespace Alpershin.Vat.Samples.Benchmark
 
             var frameMs = Time.unscaledDeltaTime * 1000f;
             _live.Add(frameMs);
+            ReadCounters();
             AdvanceSample(frameMs);
             ReadPointer();
 
@@ -163,6 +173,14 @@ namespace Alpershin.Vat.Samples.Benchmark
                 _nextRefresh = Time.unscaledTime + _refreshInterval;
                 RebuildText();
             }
+        }
+
+        private void ReadCounters()
+        {
+            _liveDrawCalls.Add(Value(_drawCalls));
+            _liveBatches.Add(Value(_batches));
+            _liveSetPassCalls.Add(Value(_setPassCalls));
+            _liveTriangles.Add(Value(_triangles));
         }
 
         private void EnsureLayout()
@@ -289,10 +307,10 @@ namespace Alpershin.Vat.Samples.Benchmark
             _builder.Append("main    ").Append(Milliseconds(_mainThread))
                 .Append("   cap ").Append(Application.targetFrameRate)
                 .Append(" / screen ").Append(RefreshRate().ToString("F0")).Append(" Hz").AppendLine();
-            _builder.Append("draws ").Append(Counter(_drawCalls))
-                .Append("   batches ").Append(Counter(_batches))
-                .Append("   setpass ").Append(Counter(_setPassCalls)).AppendLine();
-            _builder.Append("tris    ").Append(Counter(_triangles));
+            _builder.Append("draws ").Append(Counter(_drawCalls, _liveDrawCalls))
+                .Append("   batches ").Append(Counter(_batches, _liveBatches))
+                .Append("   setpass ").Append(Counter(_setPassCalls, _liveSetPassCalls)).AppendLine();
+            _builder.Append("tris    ").Append(Counter(_triangles, _liveTriangles));
 
             _readout = _builder.ToString();
         }
@@ -328,10 +346,11 @@ namespace Alpershin.Vat.Samples.Benchmark
             return recorder.Valid ? recorder.LastValue : 0L;
         }
 
-        // Render counters only exist in the editor and in development builds.
-        private static string Counter(ProfilerRecorder recorder)
+        // Render counters only exist in the editor and in development builds. The window, not the
+        // recorder's last sample, is what gets shown — see the fields for why.
+        private static string Counter(ProfilerRecorder recorder, FrameStats window)
         {
-            return recorder.Valid ? recorder.LastValue.ToString() : "n/a";
+            return recorder.Valid ? window.Average().ToString("F0") : "n/a";
         }
 
         private static string Milliseconds(ProfilerRecorder recorder)
