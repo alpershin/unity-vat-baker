@@ -11,8 +11,8 @@ no `SkinnedMeshRenderer`, no per-unit CPU work per frame.
 - **Runtime** — `VatCrowdPlayer` drives a whole crowd through global shader properties (one batch),
   `VatUnitAnimator` gives each unit its own clip, start time and crossfade through a
   `MaterialPropertyBlock`.
-- **Shaders** — `VAT/Lit`, `VAT/Unlit` and an HLSL entry point for Shader Graph
-  (`Runtime/Shaders/VatShaderGraph.hlsl`).
+- **Shaders** — `VAT/Lit` (forward and deferred), `VAT/Unlit`, and an HLSL entry point for
+  Shader Graph (`Runtime/Shaders/VatShaderGraph.hlsl`).
 - **LODs** — bake several prefabs as LOD levels into one set; the baker builds the `LODGroup` prefab.
 
 ## Requirements
@@ -21,6 +21,7 @@ no `SkinnedMeshRenderer`, no per-unit CPU work per frame.
 |---|---|
 | Unity | 6000.3 or newer |
 | Render pipeline | URP 17.3+ (the shaders are URP-only) |
+| Deferred | supported by `VAT/Lit`; URP's deferred path itself rules out the OpenGL backends |
 | Also pulled in | Input System 1.19+, Animation module |
 
 ## Install
@@ -72,8 +73,61 @@ _unit.PlayImmediate(1);       // no fade
 
 `VatUnitAnimator` needs **Per Unit Animation** enabled on the baked material.
 
+**Phase Scatter** keeps a crowd on one clip from marching in lockstep. It is seeded from the
+instance id, so the renderers have to be GPU-instanced for it to do anything — an un-instanced
+renderer plays unshifted rather than picking an arbitrary offset. `VatUnitAnimator` does not use
+it: units already desync through their own start times.
+
 Clip fields exposed in the inspector can use `VatClipReference`, which resolves a clip name against
 the set and shows a dropdown instead of a raw string.
+
+## Which shader path
+
+| | `VAT/Lit`, `VAT/Unlit` | Shader Graph |
+|---|---|---|
+| Frame interpolation | yes | yes |
+| Crossfade via `VatCrowdPlayer` | yes | yes |
+| Per-unit clips (`VatUnitAnimator`) | yes | **no** |
+| Deferred (G-buffer) | `VAT/Lit` only | yes, from the Lit target |
+| Custom lighting, VFX Graph, Built-In target | no | yes |
+| Per-pass fetch savings | yes | no |
+
+The hand-written shaders are the reference implementation and the performance ceiling: they gate
+texture fetches per pass and drop vertex inputs nothing reads, neither of which Shader Graph can
+express. Per-unit clips arrive as instanced properties, which Shader Graph cannot declare at all.
+
+The graph path is for reaching things the hand-written shaders do not: your own lighting model, a
+VFX Graph output, or the Built-In render pipeline.
+
+### Using it from Shader Graph
+
+There is no SubGraph asset in the package yet — wire the two custom functions by hand.
+
+Add a **Custom Function** node, set Type to *File* and Source to
+`Runtime/Shaders/VatShaderGraph.hlsl`, then declare the ports exactly in this order:
+
+```
+Name: VatSample
+
+in   PositionMap : Texture2D      out  PositionOS : Vector3
+     NormalMap   : Texture2D           NormalOS   : Vector3
+     VertexU     : Float
+     VatParams   : Vector4
+     Phase       : Float
+     Time        : Float
+```
+
+`VertexU` is the vertex's column into the maps: a **UV** node set to **UV1**, split, red channel.
+The baker writes it to `mesh.uv2`. Drive **Vertex Position** and **Vertex Normal** with the
+outputs — the function samples in the vertex stage and has no meaning in the fragment stage.
+
+For `Phase`, add a second Custom Function node from the same file named `VatInstancePhase` — no
+inputs, one `Phase` (Float) output — and scale it by however much scatter you want. Shader Graph
+has no instance-id node, which is why this exists.
+
+Give the graph's own properties the references the baker looks for, or it will fill nothing and
+the crowd will render in bind pose: `_PositionMap`, `_NormalMap`, `_VatParams`, plus `_BaseMap`
+and `_BaseColor` if you use the graph as a **Material Template**.
 
 ## Sample
 
