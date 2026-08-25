@@ -42,7 +42,8 @@ float VatUnitPhase()
 
 float3 VatFetchPosition(float vertexU, float frame, float height)
 {
-    return SAMPLE_TEXTURE2D_LOD(_PositionMap, sampler_PositionMap, VatMapUv(vertexU, frame, height), 0).xyz;
+    float3 encoded = SAMPLE_TEXTURE2D_LOD(_PositionMap, sampler_PositionMap, VatMapUv(vertexU, frame, height), 0).xyz;
+    return VatDecodePosition(encoded, _VatBoundsMin.xyz, _VatBoundsMax.xyz);
 }
 
 float3 VatFetchNormal(float vertexU, float frame, float height)

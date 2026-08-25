@@ -48,6 +48,13 @@ Pin a release by appending a tag: `…unity-vat-baker.git#v0.2.0`.
    `AnimatorController` (every clip on a chosen layer, transition durations included).
 4. Set FPS, normals, shadows, per-unit animation and the material template, then press **Bake**.
 
+**Compact Position Map** halves the position map — eight bits a channel normalised to the pose
+bounds instead of half floats. On the benchmark crowd it cost about 7% of frame time and quantises
+to roughly 6 mm on a 1.5 m character. Off by default, because a shader cannot decode a compact map
+without the bounds and a Shader Graph that never wired them would break. Turn it on when memory
+matters more than those two things; the hand-written shaders get the bounds from the baker
+automatically.
+
 The bake writes the mesh and maps into the set, and drops the materials and a spawnable prefab next
 to it. `VatAnimationSet.Prefab` is what a spawner should instantiate.
 
@@ -111,11 +118,18 @@ Name: VatSample
 
 in   PositionMap : Texture2D      out  PositionOS : Vector3
      NormalMap   : Texture2D           NormalOS   : Vector3
+     BoundsMin   : Vector3
+     BoundsMax   : Vector3
      VertexU     : Float
      VatParams   : Vector4
      Phase       : Float
      Time        : Float
 ```
+
+`BoundsMin` and `BoundsMax` come from `VatAnimationSet.Bounds`. They are **optional**: leave them
+unwired and the node reads the position map as-is, which is exactly what a set baked without
+**Compact Position Map** needs. Wire them and the same node handles a compact set too — the set
+reports a zero-sized box when the map is raw, so one wiring stays correct either way.
 
 `VertexU` is the vertex's column into the maps: a **UV** node set to **UV1**, split, red channel.
 The baker writes it to `mesh.uv2`. Drive **Vertex Position** and **Vertex Normal** with the

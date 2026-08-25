@@ -14,6 +14,8 @@
 void VatGraphFetch(
     UnityTexture2D positionMap,
     UnityTexture2D normalMap,
+    float3 boundsMin,
+    float3 boundsMax,
     float vertexU,
     float frame,
     float height,
@@ -22,7 +24,8 @@ void VatGraphFetch(
 {
     float2 uv = VatMapUv(vertexU, frame, height);
 
-    positionOS = SAMPLE_TEXTURE2D_LOD(positionMap.tex, positionMap.samplerstate, uv, 0).xyz;
+    float3 position = SAMPLE_TEXTURE2D_LOD(positionMap.tex, positionMap.samplerstate, uv, 0).xyz;
+    positionOS = VatDecodePosition(position, boundsMin, boundsMax);
     normalOS = VatDecodeNormal(SAMPLE_TEXTURE2D_LOD(normalMap.tex, normalMap.samplerstate, uv, 0).xy);
 }
 
@@ -30,6 +33,8 @@ void VatGraphFetch(
 void VatGraphSampleNearest(
     UnityTexture2D positionMap,
     UnityTexture2D normalMap,
+    float3 boundsMin,
+    float3 boundsMax,
     float vertexU,
     float4 clipParams,
     float time,
@@ -38,13 +43,15 @@ void VatGraphSampleNearest(
     out float3 normalOS)
 {
     float frame = floor(VatFrame(clipParams, time, phase));
-    VatGraphFetch(positionMap, normalMap, vertexU, frame, max(clipParams.w, 1.0), positionOS, normalOS);
+    VatGraphFetch(positionMap, normalMap, boundsMin, boundsMax, vertexU, frame, max(clipParams.w, 1.0), positionOS, normalOS);
 }
 
 // The pose between the two neighbouring baked frames.
 void VatGraphSampleClip(
     UnityTexture2D positionMap,
     UnityTexture2D normalMap,
+    float3 boundsMin,
+    float3 boundsMax,
     float vertexU,
     float4 clipParams,
     float time,
@@ -59,8 +66,8 @@ void VatGraphSampleClip(
     VatFramePair(clipParams, frame, frame0, frame1, weight);
 
     float3 position0, normal0, position1, normal1;
-    VatGraphFetch(positionMap, normalMap, vertexU, frame0, height, position0, normal0);
-    VatGraphFetch(positionMap, normalMap, vertexU, frame1, height, position1, normal1);
+    VatGraphFetch(positionMap, normalMap, boundsMin, boundsMax, vertexU, frame0, height, position0, normal0);
+    VatGraphFetch(positionMap, normalMap, boundsMin, boundsMax, vertexU, frame1, height, position1, normal1);
 
     positionOS = lerp(position0, position1, weight);
     normalOS = lerp(normal0, normal1, weight);
@@ -73,12 +80,18 @@ void VatGraphSampleClip(
 // VatParams is the clip baked into the material. A VatCrowdPlayer in the scene overrides it
 // through the globals, so a graph material joins the same crowd as a hand-written one.
 //
+// BoundsMin and BoundsMax are the pose bounds the bake measured — VatAnimationSet.Bounds. The
+// position map holds everything normalised to that box, so wrong bounds collapse the mesh rather
+// than distorting it slightly.
+//
 // Phase used to be derived here from an Object node -> Position. That is wrong for anything that
 // moves: the hash re-rolls as the unit walks and the animation jumps every frame. Pass a phase
 // that is stable per unit, or zero for a crowd that may march in lockstep.
 void VatSample_float(
     UnityTexture2D PositionMap,
     UnityTexture2D NormalMap,
+    float3 BoundsMin,
+    float3 BoundsMax,
     float VertexU,
     float4 VatParams,
     float Phase,
@@ -90,7 +103,7 @@ void VatSample_float(
 
     if (_VatBlend <= 0.0)
     {
-        VatGraphSampleClip(PositionMap, NormalMap, VertexU, clipA, Time, Phase, PositionOS, NormalOS);
+        VatGraphSampleClip(PositionMap, NormalMap, BoundsMin, BoundsMax, VertexU, clipA, Time, Phase, PositionOS, NormalOS);
         return;
     }
 
@@ -98,8 +111,8 @@ void VatSample_float(
     // already hide the step between baked frames, so interpolating inside each of them doubles the
     // fetches for something nobody can see.
     float3 targetPosition, targetNormal;
-    VatGraphSampleNearest(PositionMap, NormalMap, VertexU, clipA, Time, Phase, PositionOS, NormalOS);
-    VatGraphSampleNearest(PositionMap, NormalMap, VertexU, _VatClipB, Time, Phase, targetPosition, targetNormal);
+    VatGraphSampleNearest(PositionMap, NormalMap, BoundsMin, BoundsMax, VertexU, clipA, Time, Phase, PositionOS, NormalOS);
+    VatGraphSampleNearest(PositionMap, NormalMap, BoundsMin, BoundsMax, VertexU, _VatClipB, Time, Phase, targetPosition, targetNormal);
 
     PositionOS = lerp(PositionOS, targetPosition, _VatBlend);
     NormalOS = lerp(NormalOS, targetNormal, _VatBlend);

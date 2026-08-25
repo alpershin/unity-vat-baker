@@ -18,6 +18,7 @@ namespace Alpershin.Vat
         [SerializeField] private int _totalFrames;
         [SerializeField] private int _lodLevels = 1;
         [SerializeField] private int _vertexCount;
+        [SerializeField] private Bounds _bounds;
         [SerializeField] private GameObject _prefab;
 
         public Mesh Mesh => _mesh;
@@ -26,6 +27,19 @@ namespace Alpershin.Vat
         public int TotalFrames => _totalFrames;
         public int LodLevels => _lodLevels;
         public int VertexCount => _vertexCount;
+
+        /// <summary>
+        /// The box the position map is normalised to — feed it to a Shader Graph's BoundsMin and
+        /// BoundsMax. **Zero-sized when the map holds raw positions**, which is what tells the
+        /// shader to pass samples through untouched, so this is always the right thing to feed
+        /// whether or not Compact Position Map is on.
+        ///
+        /// Pose bounds the bake measured, over every frame of every clip. The position map holds
+        /// everything normalised to this box, so it cannot be decoded without it — feed these to a
+        /// Shader Graph's BoundsMin and BoundsMax. Baked materials already carry them as
+        /// _VatBoundsMin and _VatBoundsMax.
+        /// </summary>
+        public Bounds Bounds => _bounds;
 
         /// <summary>The prefab the bake produced — what a spawner is meant to instantiate.</summary>
         public GameObject Prefab => _prefab;
@@ -82,6 +96,15 @@ namespace Alpershin.Vat
         [Header("Bake")]
         [SerializeField, Min(1f)] private float _fps = 30f;
         [SerializeField] private bool _bakeNormals = true;
+
+        /// <summary>
+        /// Halves the position map by storing values normalised to <see cref="Bounds"/> in eight
+        /// bits a channel instead of half floats. Costs a few per cent of frame time and quantises
+        /// to roughly 6 mm on a 1.5 m character, and a shader cannot decode the map without the
+        /// bounds — which is why it is off by default: a Shader Graph that never wired BoundsMin
+        /// and BoundsMax keeps working until you turn this on.
+        /// </summary>
+        [SerializeField] private bool _compactPositionMap;
         [SerializeField] private bool _perUnitAnimation;
 
         [Header("LOD Group")]
@@ -98,6 +121,7 @@ namespace Alpershin.Vat
         public VatSourceClip[] SourceClips => _sourceClips;
         public float Fps => _fps;
         public bool BakeNormals => _bakeNormals;
+        public bool CompactPositionMap => _compactPositionMap;
         public bool PerUnitAnimation => _perUnitAnimation;
         public GameObject[] LodPrefabs => _lodPrefabs;
         public float[] LodTransitions => _lodTransitions;
@@ -111,8 +135,9 @@ namespace Alpershin.Vat
             _sourceClips = clips ?? Array.Empty<VatSourceClip>();
         }
 
-        public void Configure(Mesh mesh, Texture2D positionMap, Texture2D normalMap, VatClip[] clips, int totalFrames, int vertexCount, int lodLevels)
+        public void Configure(Mesh mesh, Texture2D positionMap, Texture2D normalMap, VatClip[] clips, int totalFrames, int vertexCount, int lodLevels, Bounds bounds)
         {
+            _bounds = bounds;
             _mesh = mesh;
             _positionMap = positionMap;
             _normalMap = normalMap;

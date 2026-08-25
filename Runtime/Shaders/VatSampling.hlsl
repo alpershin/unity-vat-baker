@@ -63,6 +63,19 @@ float4 VatCurrentClip(float4 materialParams)
     return _VatClipA.y > 0.0 ? _VatClipA : materialParams;
 }
 
+// A compact position map stores values normalised to the bounds the bake measured, and decoding is
+// one lerp. Normalisation is what lets the map drop to eight bits a channel at all — raw
+// object-space values need the range a half float carries.
+//
+// A zero-sized box means the map was baked raw and the samples are already object space. That is
+// also what an unwired pair of Shader Graph inputs looks like, so the two cases collapse into one:
+// wire the bounds once and the graph stays correct whichever way the set was baked.
+float3 VatDecodePosition(float3 encoded, float3 boundsMin, float3 boundsMax)
+{
+    float3 size = boundsMax - boundsMin;
+    return all(size <= 0.0) ? encoded : lerp(boundsMin, boundsMax, encoded);
+}
+
 // Normals arrive octahedral in two channels: a unit vector folded onto a square by the baker, at
 // roughly a degree of error, for a quarter of what three half-float channels would cost.
 float3 VatDecodeNormal(float2 encoded)

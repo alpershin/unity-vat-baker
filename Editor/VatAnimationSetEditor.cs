@@ -14,7 +14,7 @@ namespace Alpershin.Vat.EditorTools
 
         private static readonly string[] AfterClips =
         {
-            "_fps", "_bakeNormals", "_perUnitAnimation",
+            "_fps", "_bakeNormals", "_compactPositionMap", "_perUnitAnimation",
             "_lodPrefabs", "_lodTransitions",
             "_createPrefab", "_castShadows", "_shader", "_materialTemplate"
         };

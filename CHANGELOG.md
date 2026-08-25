@@ -6,16 +6,31 @@ and this package adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Compact Position Map**, a bake option on `VatAnimationSet`. Stores positions normalised to the
+  pose bounds in eight bits a channel rather than half floats, halving the position map. Measured
+  on the benchmark crowd against a matching Mecanim control: about 7% of frame time, quantising to
+  roughly 6 mm on a 1.5 m character. Off by default — a shader cannot decode a compact map without
+  the bounds, so leaving it off keeps every existing setup working untouched.
+- `VatAnimationSet.Bounds` reports the box the position map is normalised to, and a zero-sized box
+  when the map holds raw positions. Baked materials carry the same values as `_VatBoundsMin` and
+  `_VatBoundsMax`; the baker fills them on any material whose shader declares them, graph or not.
+
 ### Changed
 
-- **Requires a rebake.** Normal maps are octahedral `RG16` instead of `RGBAHalf`: a unit vector
-  folded onto a square in two channels of eight bits, about a degree of error. Four times smaller —
-  an 8000-vertex level with 600 frames drops from 38 MB to 10 MB for the normal map, 77 MB to 48 MB
-  for the pair. A set baked before this change lights wrong until rebaked; the geometry is
-  unaffected, since position maps are untouched.
-- The baker refuses to start if the graphics backend has no `RG16`, rather than letting the format
-  reach the driver. An unsupported texture format raises nothing catchable — the backend asserts
-  and takes the editor down with it.
+- **Requires a rebake.** Normal maps are octahedral `RG16` instead of `RGBAHalf` — a unit vector
+  folded onto a square in two channels of eight bits, at about a degree of error and a quarter of
+  the size. An 8000-vertex level with 600 frames drops from 77 MB to 48 MB for the pair, and to
+  29 MB with Compact Position Map on.
+- Shader Graph's `VatSample` gains **optional** `BoundsMin` and `BoundsMax` inputs. Left unwired
+  they read as a zero-sized box and the node passes map samples through, so a graph built against
+  0.2.0 keeps working; wire them and the same node also handles a compact set.
+- Map formats are checked for both `Sample` and `SetPixels` before a bake starts. Passing one usage
+  does not imply the other — RGB10A2 on Metal accepts `SetPixels` and refuses `Sample` — and an
+  unsupported format asserts inside the graphics backend rather than raising anything catchable.
+  A support query says nothing about speed either: `RGB9e5Float` passes every check, halves the
+  map, and tripled frame time on Apple Silicon, so the compact format is plain `RGBA32`.
 
 ### Fixed
 

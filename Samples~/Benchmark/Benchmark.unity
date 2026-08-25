@@ -168,25 +168,15 @@ MonoBehaviour:
   - _name: Mecanim
     _prefab: {fileID: 4710867343885967915, guid: 865084142d11376408fc0b3f74f53295, type: 3}
   - _name: VAT
-    _prefab: {fileID: 3690975095720830376, guid: 99423978bbe38438eaa5044e94b96272, type: 3}
+    _prefab: {fileID: 3896589984357925227, guid: 99423978bbe38438eaa5044e94b96272, type: 3}
+  - _name: VAT Shared
+    _prefab: {fileID: 4460670812605635267, guid: 986ee17d9c2f44a52ac98d81c119e09d, type: 3}
   _startIndex: 0
   _spawnOnStart: 0
   _switchKey: 3
   _switched:
     m_PersistentCalls:
-      m_Calls:
-      - m_Target: {fileID: 1209434216}
-        m_TargetAssemblyTypeName: Alpershin.Vat.Samples.Benchmark.VatCrowdRandomizer, Alpershin.Vat.Samples
-        m_MethodName: Rebuild
-        m_Mode: 1
-        m_Arguments:
-          m_ObjectArgument: {fileID: 0}
-          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
-          m_IntArgument: 0
-          m_FloatArgument: 0
-          m_StringArgument: 
-          m_BoolArgument: 0
-        m_CallState: 2
+      m_Calls: []
 --- !u!1 &330585543
 GameObject:
   m_ObjectHideFlags: 0
@@ -361,7 +351,7 @@ MonoBehaviour:
   _settleDelay: 0.5
   _keptResults: 4
   _uncapFrameRate: 1
-  _targetFrameRate: 300
+  _targetFrameRate: 2000
   _drawHud: 1
   _refreshInterval: 0.25
   _uiScale: 0
@@ -566,7 +556,6 @@ GameObject:
   m_Component:
   - component: {fileID: 1209434215}
   - component: {fileID: 1209434214}
-  - component: {fileID: 1209434216}
   m_Layer: 0
   m_Name: General
   m_TagString: Untagged
@@ -623,21 +612,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &1209434216
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1209434213}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6834dc4f0b5434e33a5e37fde6c8db96, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Alpershin.Vat.Samples::Alpershin.Vat.Samples.Benchmark.VatCrowdRandomizer
-  _root: {fileID: 1209434215}
-  _switchInterval: {x: 2, y: 6}
-  _seed: 12345
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

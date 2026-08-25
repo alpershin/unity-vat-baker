@@ -10,6 +10,8 @@ Shader "VAT/Lit"
         _PositionMap("VAT Positions", 2D) = "black" {}
         _NormalMap("VAT Normals", 2D) = "black" {}
         _VatParams("Start / Count / FPS / Height", Vector) = (0, 30, 30, 30)
+        _VatBoundsMin("VAT Bounds Min", Vector) = (0, 0, 0, 0)
+        _VatBoundsMax("VAT Bounds Max", Vector) = (0, 0, 0, 0)
         _PhaseScatter("Phase Scatter", Range(0, 1)) = 1
         [Toggle(_VAT_FRAME_BLEND)] _FrameBlend("Interpolate Frames", Float) = 1
         [Toggle(_VAT_PER_INSTANCE)] _PerInstance("Per Unit Animation", Float) = 0
@@ -38,6 +40,8 @@ Shader "VAT/Lit"
             half _Metallic;
             half _Smoothness;
             float4 _VatParams;
+            float4 _VatBoundsMin;
+            float4 _VatBoundsMax;
             float _PhaseScatter;
             float _PerInstance;
         CBUFFER_END

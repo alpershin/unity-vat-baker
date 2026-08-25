@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 
 namespace Alpershin.Vat.EditorTools
@@ -16,6 +17,16 @@ namespace Alpershin.Vat.EditorTools
         private const int MaxMapWidth = 16384;
         private const int MaxMapHeight = 16384;
         private const TextureFormat NormalMapFormat = TextureFormat.RG16;
+
+        // Positions are written normalised to the pose bounds either way, so the choice of format
+        // never reaches the shader — it decodes with one lerp regardless.
+        //
+        // RGB9e5Float halves the map and passes every support query, but its shared exponent has to
+        // be unpacked on every fetch and a VAT map is fetched per vertex per pass. RGBA32 is the
+        // other four-byte option and needs no unpacking at all: eight bits a channel across the
+        // bounds, which on a 1.5 m character lands every 6 mm.
+        private const TextureFormat CompactPositionFormat = TextureFormat.RGBA32;
+        private const TextureFormat FallbackPositionFormat = TextureFormat.RGBAHalf;
         private const string PerInstanceKeyword = "_VAT_PER_INSTANCE";
 
         private static readonly int BaseMapId = Shader.PropertyToID("_BaseMap");
@@ -26,6 +37,8 @@ namespace Alpershin.Vat.EditorTools
         private static readonly int MetallicId = Shader.PropertyToID("_Metallic");
         private static readonly int SmoothnessId = Shader.PropertyToID("_Smoothness");
         private static readonly int PerInstanceId = Shader.PropertyToID("_PerInstance");
+        private static readonly int BoundsMinId = Shader.PropertyToID("_VatBoundsMin");
+        private static readonly int BoundsMaxId = Shader.PropertyToID("_VatBoundsMax");
 
         public static VatBakeResult Bake(VatAnimationSet set)
         {
@@ -221,10 +234,10 @@ namespace Alpershin.Vat.EditorTools
 
             // An unsupported texture format does not throw — the graphics backend asserts and takes
             // the editor down with it, so it gets checked here rather than discovered at upload.
-            if (set.BakeNormals && !SystemInfo.SupportsTextureFormat(NormalMapFormat))
+            if (set.BakeNormals && !IsMapFormatUsable(NormalMapFormat))
             {
-                problem = $"This machine's graphics backend has no {NormalMapFormat}, which the normal " +
-                          "map needs. Switch Bake Normals off.";
+                problem = $"This machine's graphics backend cannot both sample and CPU-fill " +
+                          $"{NormalMapFormat}, which the normal map needs. Switch Bake Normals off.";
                 return false;
             }
 
@@ -299,7 +312,7 @@ namespace Alpershin.Vat.EditorTools
                 level.MeshResult = VatMeshBuilder.Build(level.Renderers, buffer, $"{baseName}-VatMesh{level.Suffix}", mesh);
                 Keep(set, setPath, level.MeshResult.Mesh, kept);
 
-                var positionMap = WriteMap(set, setPath, $"{baseName}-VatPositions{level.Suffix}", buffer.Positions, buffer, kept);
+                var positionMap = WritePositionMap(set, setPath, $"{baseName}-VatPositions{level.Suffix}", buffer, kept);
                 var normalMap = buffer.HasNormals
                     ? WriteNormalMap(set, setPath, $"{baseName}-VatNormals{level.Suffix}", buffer, kept)
                     : null;
@@ -311,7 +324,7 @@ namespace Alpershin.Vat.EditorTools
                 // The clip table is identical across levels, so one record describes the whole set.
                 if (i == 0)
                 {
-                    set.Configure(level.MeshResult.Mesh, positionMap, normalMap, buffer.Clips, buffer.FrameCount, buffer.VertexCount, levels.Count);
+                    set.Configure(level.MeshResult.Mesh, positionMap, normalMap, buffer.Clips, buffer.FrameCount, buffer.VertexCount, levels.Count, DecodeBounds(set, buffer));
                 }
             }
 
@@ -332,12 +345,55 @@ namespace Alpershin.Vat.EditorTools
             return VatBakeResult.Succeeded(set, message);
         }
 
-        private static Texture2D WriteMap(VatAnimationSet set, string setPath, string name, Vector3[] data, VatSampleBuffer buffer, List<Object> kept)
+        private static Texture2D WritePositionMap(VatAnimationSet set, string setPath, string name, VatSampleBuffer buffer, List<Object> kept)
         {
             var existing = AcquireSubAsset<Texture2D>(set, setPath, name);
-            var map = CreateMap(name, data, buffer.VertexCount, buffer.FrameCount, existing);
+            var map = CreatePositionMap(set, name, buffer, existing);
             Keep(set, setPath, map, kept);
             return map;
+        }
+
+        /// <summary>
+        /// A map format has to survive both halves of its life: filled from the CPU here, sampled
+        /// in a vertex shader later. A format can pass one and fail the other — RGB10A2 on Metal
+        /// takes SetPixels and refuses Sample — and an unsupported format does not raise anything
+        /// catchable, it asserts inside the graphics backend and takes the editor down.
+        /// </summary>
+        /// <summary>
+        /// The box the shader has to undo. A raw bake gets a zero-sized one on purpose: that is the
+        /// signal to pass map samples through, and it means a Shader Graph can wire these inputs
+        /// once and stay correct whichever way the set was baked.
+        /// </summary>
+        private static Bounds DecodeBounds(VatAnimationSet set, VatSampleBuffer buffer)
+        {
+            return set.CompactPositionMap ? buffer.Bounds : new Bounds(Vector3.zero, Vector3.zero);
+        }
+
+        private static bool IsMapFormatUsable(TextureFormat format)
+        {
+            var graphics = GraphicsFormatUtility.GetGraphicsFormat(format, false);
+            return SystemInfo.IsFormatSupported(graphics, GraphicsFormatUsage.Sample)
+                && SystemInfo.IsFormatSupported(graphics, GraphicsFormatUsage.SetPixels);
+        }
+
+        private static TextureFormat ResolvePositionFormat(VatAnimationSet set)
+        {
+            if (!set.CompactPositionMap)
+            {
+                return FallbackPositionFormat;
+            }
+
+            if (IsMapFormatUsable(CompactPositionFormat))
+            {
+                return CompactPositionFormat;
+            }
+
+            Debug.LogWarning(
+                $"This machine cannot both sample and CPU-fill {CompactPositionFormat}, so the position " +
+                $"map falls back to {FallbackPositionFormat} at twice the size. The bake is otherwise " +
+                "unaffected — positions are normalised either way and the shader does not know the " +
+                "difference.", set);
+            return FallbackPositionFormat;
         }
 
         private static Texture2D WriteNormalMap(VatAnimationSet set, string setPath, string name, VatSampleBuffer buffer, List<Object> kept)
@@ -430,6 +486,16 @@ namespace Alpershin.Vat.EditorTools
                     material.SetVector(VatParamsId, vatParams);
                 }
 
+                // Without these the map decodes against a zero-sized box and the mesh collapses
+                // onto a point — loud rather than subtly wrong, which is what we want if a
+                // material template's shader forgot to declare them.
+                if (material.HasProperty(BoundsMinId) && material.HasProperty(BoundsMaxId))
+                {
+                    var bounds = DecodeBounds(set, level.Buffer);
+                    material.SetVector(BoundsMinId, bounds.min);
+                    material.SetVector(BoundsMaxId, bounds.max);
+                }
+
                 ApplyPerUnitMode(material, set.PerUnitAnimation);
 
                 AssetDatabase.CreateAsset(material, $"{folder}/{material.name}.mat");
@@ -499,16 +565,26 @@ namespace Alpershin.Vat.EditorTools
             }
         }
 
-        private static Texture2D CreateMap(string name, Vector3[] data, int width, int height, Texture2D target)
+        /// <summary>
+        /// Positions go in normalised to the pose bounds, so every value is in [0, 1] and the
+        /// shader decodes with a single lerp. Normalising is what makes a compact format viable at
+        /// all: raw world-space positions would need the range a half float carries.
+        /// </summary>
+        private static Texture2D CreatePositionMap(VatAnimationSet set, string name, VatSampleBuffer buffer, Texture2D target)
         {
+            var width = buffer.VertexCount;
+            var height = buffer.FrameCount;
+            var compact = set.CompactPositionMap;
+            var format = ResolvePositionFormat(set);
+
             var texture = target;
-            if (texture == null)
+            if (texture == null || texture.format != format)
             {
-                texture = new Texture2D(width, height, TextureFormat.RGBAHalf, false, true);
+                texture = new Texture2D(width, height, format, false, true);
             }
             else
             {
-                texture.Reinitialize(width, height, TextureFormat.RGBAHalf, false);
+                texture.Reinitialize(width, height, format, false);
             }
 
             texture.name = name;
@@ -516,11 +592,39 @@ namespace Alpershin.Vat.EditorTools
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.anisoLevel = 0;
 
+            var positions = buffer.Positions;
             var pixels = new Color[width * height];
-            for (var i = 0; i < pixels.Length; i++)
+
+            if (compact)
             {
-                var value = data[i];
-                pixels[i] = new Color(value.x, value.y, value.z, 1f);
+                var bounds = buffer.Bounds;
+                var min = bounds.min;
+                var size = bounds.size;
+
+                // A character that never moves along an axis gives that axis zero extent.
+                // Everything there collapses to zero and decodes back to the value bounds.min holds.
+                var inverse = new Vector3(
+                    size.x > 0f ? 1f / size.x : 0f,
+                    size.y > 0f ? 1f / size.y : 0f,
+                    size.z > 0f ? 1f / size.z : 0f);
+
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var value = positions[i];
+                    pixels[i] = new Color(
+                        Mathf.Clamp01((value.x - min.x) * inverse.x),
+                        Mathf.Clamp01((value.y - min.y) * inverse.y),
+                        Mathf.Clamp01((value.z - min.z) * inverse.z),
+                        1f);
+                }
+            }
+            else
+            {
+                for (var i = 0; i < pixels.Length; i++)
+                {
+                    var value = positions[i];
+                    pixels[i] = new Color(value.x, value.y, value.z, 1f);
+                }
             }
 
             texture.SetPixels(pixels);
@@ -528,11 +632,6 @@ namespace Alpershin.Vat.EditorTools
             return texture;
         }
 
-        /// <summary>
-        /// Normals go in octahedral, two channels of eight bits: a unit vector folded onto a square
-        /// at roughly a degree of error, which a crowd never resolves. A quarter of what three
-        /// half-float channels cost. VatDecodeNormal in VatSampling.hlsl unfolds it.
-        /// </summary>
         private static Texture2D CreateNormalMap(string name, VatSampleBuffer buffer, Texture2D target)
         {
             var width = buffer.VertexCount;
