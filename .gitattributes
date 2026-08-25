@@ -1,0 +1,24 @@
+* text=auto eol=lf
+
+*.cs      text diff=csharp
+*.shader  text
+*.hlsl    text
+*.asmdef  text
+*.json    text
+*.md      text
+
+# Unity YAML — keep it diffable, merge it with UnityYAMLMerge
+*.meta       text merge=unityyamlmerge
+*.unity      text merge=unityyamlmerge
+*.prefab     text merge=unityyamlmerge
+*.asset      text merge=unityyamlmerge
+*.mat        text merge=unityyamlmerge
+*.controller text merge=unityyamlmerge
+*.anim       text merge=unityyamlmerge
+
+*.fbx binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.tga binary
+*.psd binary

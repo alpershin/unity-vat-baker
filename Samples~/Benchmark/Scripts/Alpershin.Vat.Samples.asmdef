@@ -1,0 +1,17 @@
+{
+    "name": "Alpershin.Vat.Samples",
+    "rootNamespace": "Alpershin.Vat.Samples",
+    "references": [
+        "Alpershin.Vat",
+        "Unity.InputSystem"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

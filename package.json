@@ -1,0 +1,34 @@
+{
+  "name": "com.alpershin.vat",
+  "version": "0.1.0",
+  "displayName": "VAT Animation Baker",
+  "description": "Bakes Unity animation clips into vertex animation textures and plays them back on URP shaders, so a whole crowd animates from one material and one instanced draw call. Ships an editor baker with preview window, a runtime crowd player and lit/unlit VAT shaders.",
+  "unity": "6000.3",
+  "license": "MIT",
+  "author": {
+    "name": "Aleksandr Pershin",
+    "url": "https://github.com/alpershin"
+  },
+  "keywords": [
+    "vat",
+    "vertex-animation-texture",
+    "crowd",
+    "animation",
+    "urp",
+    "gpu-instancing"
+  ],
+  "documentationUrl": "https://github.com/alpershin/unity-vat-baker",
+  "changelogUrl": "https://github.com/alpershin/unity-vat-baker/blob/main/CHANGELOG.md",
+  "dependencies": {
+    "com.unity.render-pipelines.universal": "17.3.0",
+    "com.unity.inputsystem": "1.19.0",
+    "com.unity.modules.animation": "1.0.0"
+  },
+  "samples": [
+    {
+      "displayName": "Crowd Benchmark",
+      "description": "Benchmark scene comparing a VAT crowd against SkinnedMeshRenderer characters, with a HUD, a grid spawner and a pre-baked animation set.",
+      "path": "Samples~/Benchmark"
+    }
+  ]
+}

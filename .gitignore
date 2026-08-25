@@ -1,0 +1,14 @@
+# macOS / editor noise
+.DS_Store
+._*
+Thumbs.db
+*.tmp
+
+# Nothing Unity generates belongs in a package repo
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+*.csproj
+*.sln
+*.slnx
+*.user
